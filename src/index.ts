@@ -47,7 +47,7 @@ async function main() {
   registerDoctorTool(server);
 
   // Start the persisted scheduled-post loop (see src/scheduler.ts).
-  startScheduler();
+  if (process.env.THREADS_DISABLE_SCHEDULER !== '1') startScheduler();
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

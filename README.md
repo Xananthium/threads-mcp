@@ -96,6 +96,10 @@ the private record directory (default `~/.threads-mcp/sends`). On a server,
 set `THREADS_ACCOUNT_HANDLE` to the signed-in account's handle. This binds
 durable sends to an explicit account when Threads' navigation has no labelled
 profile link; the server no longer guesses from links in the home feed.
+For hosts that supply a private session dynamically, `THREADS_SESSIONID` and
+optional `THREADS_DS_USER_ID` seed the browser on its first use. Set
+`THREADS_DISABLE_SCHEDULER=1` when multiple MCP workers share this server's
+scheduled-job directory and scheduling is handled elsewhere.
 
 ### Tool annotations
 

@@ -47,6 +47,40 @@ async function createContext(headless: boolean): Promise<BrowserContext> {
     humanize: true,
     args: ['--no-sandbox', '--disable-dev-shm-usage'],
   })) as unknown as BrowserContext;
+  // An embedding host can provide session cookies at process launch. Import
+  // them when the browser is first needed, so MCP tool discovery remains cheap
+  // and separate workers can use separate profile directories.
+  const sessionid = process.env.THREADS_SESSIONID;
+  if (sessionid) {
+    const userid = process.env.THREADS_DS_USER_ID;
+    const domains = [`.${DOMAIN}`, '.instagram.com'];
+    await ctx.addCookies(
+      domains.flatMap((domain) => [
+        {
+          name: 'sessionid',
+          value: sessionid,
+          domain,
+          path: '/',
+          secure: true,
+          httpOnly: true,
+          sameSite: 'Lax' as const,
+        },
+        ...(userid
+          ? [
+              {
+                name: 'ds_user_id',
+                value: userid,
+                domain,
+                path: '/',
+                secure: true,
+                httpOnly: false,
+                sameSite: 'Lax' as const,
+              },
+            ]
+          : []),
+      ]),
+    );
+  }
   return ctx;
 }
 
