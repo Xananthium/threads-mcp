@@ -47,15 +47,18 @@ You are automating a **real Threads account**. Meta rate-limits aggressively and
 
 ### Write &nbsp;(rate-limited — real account)
 
-| Tool                                | Action                                                                  |
-| ----------------------------------- | ----------------------------------------------------------------------- |
-| `create_thread`                     | Post a new thread — text and/or media, optionally a multi-post `chain`. |
-| `reply_to_thread`                   | Reply to a post — text and/or media.                                    |
-| `quote_thread`                      | Quote-post (repost with your own comment + optional media).             |
-| `delete_thread`                     | Delete one of your own posts (permanent).                               |
-| `like_thread` / `unlike_thread`     | Like / remove a like.                                                   |
-| `repost_thread` / `unrepost_thread` | Repost / remove a repost.                                               |
-| `follow_user` / `unfollow_user`     | Follow / unfollow a user.                                               |
+| Tool                                          | Action                                                                  |
+| --------------------------------------------- | ----------------------------------------------------------------------- |
+| `create_thread`                               | Post a new thread — text and/or media, optionally a multi-post `chain`. |
+| `reply_to_thread`                             | Reply to a post — text and/or media.                                    |
+| `durable_create_thread`                       | Send one text post with an idempotency key and saved receipt.           |
+| `durable_reply_to_thread`                     | Reply once to an exact post URL with a saved receipt.                   |
+| `get_durable_send` / `reconcile_durable_send` | Inspect or confirm a prior durable send.                                |
+| `quote_thread`                                | Quote-post (repost with your own comment + optional media).             |
+| `delete_thread`                               | Delete one of your own posts (permanent).                               |
+| `like_thread` / `unlike_thread`               | Like / remove a like.                                                   |
+| `repost_thread` / `unrepost_thread`           | Repost / remove a repost.                                               |
+| `follow_user` / `unfollow_user`               | Follow / unfollow a user.                                               |
 
 ### Schedule
 
@@ -66,6 +69,33 @@ You are automating a **real Threads account**. Meta rate-limits aggressively and
 | `cancel_scheduled` | Cancel a pending scheduled post by id.                                     |
 
 > **Note:** reposting your _own_ post is a no-op on Threads (it silently does nothing) — that's Threads' behavior, not a bug.
+
+### Durable text sends
+
+The `durable_*` tools accept a stable `idempotencyKey` chosen for one intended
+message. The server saves the account, target, and exact text before opening the
+composer, then records an attempted send on disk immediately before the submit
+gesture. Repeating the same key returns its saved receipt or checks the existing
+attempt. It never makes a second submit after an attempt with an unknown outcome.
+
+```json
+{ "text": "One complete thought.", "idempotencyKey": "launch-2026-10-26-01" }
+```
+
+`durable_reply_to_thread` also needs `targetUrl`, for example
+`https://www.threads.com/@someone/post/ABC123`. Results report `published`
+with a provider ID and permalink, `uncertain` when the receipt is still missing,
+or `failed_before_send` when the browser stopped before the submit gesture.
+`reconcile_durable_send` takes the same key and only reads provider evidence.
+The record remains available through `get_durable_send` after a restart. A key
+with different account, text, or target returns `key_conflict`.
+
+Text-only posts and replies use this path; existing media, chains, and other
+write tools retain their current behavior. Set `THREADS_SEND_DIR` to relocate
+the private record directory (default `~/.threads-mcp/sends`). On a server,
+set `THREADS_ACCOUNT_HANDLE` to the signed-in account's handle. This binds
+durable sends to an explicit account when Threads' navigation has no labelled
+profile link; the server no longer guesses from links in the home feed.
 
 ### Tool annotations
 

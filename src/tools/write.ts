@@ -279,6 +279,7 @@ async function fillAndSubmitComposer(
   page: Page,
   text: string,
   chain: string[] = [],
+  beforeSubmit?: () => void,
 ): Promise<void> {
   // The composer is a dialog with a contenteditable body and a "Post" button.
   const dialog = page.locator('div[role="dialog"]').last();
@@ -315,6 +316,7 @@ async function fillAndSubmitComposer(
   // The submit control is a "Post" button; it enables once there's text. The
   // anchored regex keeps this off "Post Options", which sits beside it.
   const postBtn = dialog.getByRole('button', { name: /^post$/i }).first();
+  if (beforeSubmit) beforeSubmit();
   await safeClick(postBtn, 8000);
 }
 
@@ -469,6 +471,7 @@ export async function publishThread(opts: {
   text?: string;
   media?: string[];
   chain?: string[];
+  beforeSubmit?: () => void;
 }): Promise<string> {
   const { text, media } = opts;
   const chain = (opts.chain ?? []).filter((c) => c.trim().length > 0);
@@ -509,7 +512,7 @@ export async function publishThread(opts: {
       await page.waitForTimeout(1000);
 
       if (paths.length) await uploadMedia(page, paths);
-      await fillAndSubmitComposer(page, text ?? '', chain);
+      await fillAndSubmitComposer(page, text ?? '', chain, opts.beforeSubmit);
       const closed = await waitComposerClosed(page);
 
       const what =
@@ -526,6 +529,79 @@ export async function publishThread(opts: {
   } finally {
     cleanupTemps(temps);
   }
+}
+
+/** Text-only reply path shared with the durable send tools. */
+export async function publishTextReply(opts: {
+  target: string;
+  text: string;
+  beforeSubmit?: () => void;
+}): Promise<string> {
+  if (!opts.text.trim() || opts.text.length > 500) {
+    throw new ThreadsAPIError('Reply text must contain 1–500 characters.', 200, 'reply');
+  }
+  await requireLogin();
+  await throttleWrite();
+  return onPage(async (page) => {
+    await page.goto(opts.target, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForTimeout(1800);
+    await dismissInterstitial(page);
+    const author = opts.target.match(/\/@([A-Za-z0-9._]+)\/post\//)?.[1];
+    if (!author) throw new ThreadsAPIError('Reply target must include its author.', 200, 'reply');
+    const editor = page.locator(
+      `[contenteditable="true"][aria-placeholder="Reply to ${author}..."]`,
+    );
+    await editor.first().waitFor({ state: 'visible', timeout: 10000 });
+    if ((await editor.count()) !== 1) {
+      throw new ThreadsAPIError('Could not identify the target reply editor.', 200, 'reply');
+    }
+    const expand = page.locator('[aria-label="Expand composer"]');
+    if ((await expand.count()) !== 1 || !(await expand.isVisible())) {
+      throw new ThreadsAPIError('Could not identify the reply composer.', 200, 'reply');
+    }
+    await expand.click({ timeout: 10000, noWaitAfter: true });
+    const deadline = Date.now() + 10000;
+    let activePage: Page | undefined;
+    let dialog: ReturnType<Page['locator']> | undefined;
+    while (Date.now() < deadline) {
+      const matches = [];
+      for (const candidate of page.context().pages()) {
+        if (candidate.isClosed() || !candidate.url().startsWith(BASE_URL)) continue;
+        const panel = candidate.locator('[role="dialog"]:has([contenteditable="true"])');
+        if ((await panel.count()) === 1) matches.push({ candidate, panel });
+      }
+      if (matches.length > 1) {
+        throw new ThreadsAPIError('More than one reply composer is open.', 200, 'reply');
+      }
+      if (matches.length === 1) {
+        activePage = matches[0].candidate;
+        dialog = matches[0].panel;
+        break;
+      }
+      await page.waitForTimeout(200);
+    }
+    if (!activePage || !dialog) {
+      throw new ThreadsAPIError('Reply composer did not open.', 200, 'reply');
+    }
+    const body = dialog.locator('[contenteditable="true"]');
+    if ((await body.count()) !== 1 || (await body.innerText()).trim()) {
+      throw new ThreadsAPIError('Reply composer is ambiguous or already filled.', 200, 'reply');
+    }
+    await body.fill(opts.text);
+    if ((await body.innerText()) !== opts.text) {
+      throw new ThreadsAPIError('Reply editor did not contain the exact text.', 200, 'reply');
+    }
+    const submit = dialog.getByRole('button', { name: /^post$/i });
+    if ((await submit.count()) !== 1 || !(await submit.isEnabled())) {
+      throw new ThreadsAPIError('Reply submit control is unavailable.', 200, 'reply');
+    }
+    if (opts.beforeSubmit) opts.beforeSubmit();
+    await submit.click({ timeout: 10000, noWaitAfter: true });
+    await activePage.waitForTimeout(1500);
+    markWriteComplete();
+    invalidateAfterWrite();
+    return 'Reply submitted; inspect the provider receipt to confirm publication.';
+  });
 }
 
 export function registerWriteTools(server: McpServer): void {

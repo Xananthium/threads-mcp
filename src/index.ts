@@ -7,6 +7,7 @@ import { registerReadTools } from './tools/read.js';
 import { registerWriteTools } from './tools/write.js';
 import { registerScheduleTools } from './tools/schedule.js';
 import { registerDoctorTool } from './tools/doctor.js';
+import { registerDurableTools } from './durable/tools.js';
 import { startScheduler, stopScheduler } from './scheduler.js';
 import { closeContext } from './browser/session.js';
 
@@ -40,6 +41,7 @@ async function main() {
   // rate-limited (see src/utils/ratelimit.ts).
   registerReadTools(server);
   registerWriteTools(server);
+  registerDurableTools(server);
   registerScheduleTools(server);
   // Health check for the DOM anchors the write tools depend on.
   registerDoctorTool(server);
