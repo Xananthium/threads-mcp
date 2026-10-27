@@ -53,7 +53,7 @@ async function anchorPresent(page: Page, a: Anchor): Promise<boolean> {
  */
 async function checkComposer(page: Page, out: Check[]): Promise<void> {
   const openers = [
-    page.getByText(/what's new\?|start a thread/i).first(),
+    page.getByText(/what['’]s new\?|start a thread/i).first(),
     page.getByRole('button', { name: /new thread/i }).first(),
   ];
   for (const o of openers) {

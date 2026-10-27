@@ -495,7 +495,7 @@ export async function publishThread(opts: {
       // Open the composer. Try, in order: the "What's new?" placeholder, the
       // "New thread" button, the "Create" control.
       const openers = [
-        page.getByText(/what's new\?|start a thread/i).first(),
+        page.getByText(/what['’]s new\?|start a thread/i).first(),
         page.getByRole('button', { name: /new thread/i }).first(),
         page.getByLabel('Create').first(),
       ];

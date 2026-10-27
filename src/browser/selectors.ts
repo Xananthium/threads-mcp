@@ -40,7 +40,7 @@ export const ANCHORS: Anchor[] = [
     id: 'composer-opener',
     surface: 'home',
     breaks: 'create_thread cannot open the composer',
-    text: /what's new\?|start a thread/i,
+    text: /what['’]s new\?|start a thread|new thread/i,
     required: true,
   },
   {
@@ -77,7 +77,8 @@ export const ANCHORS: Anchor[] = [
     id: 'composer-attach-media',
     surface: 'composer',
     breaks: 'media cannot be attached to replies',
-    css: 'svg[aria-label="Attach media"]',
+    // Uploads use the file input directly; the decorative icon label varies.
+    css: 'input[type="file"], svg[aria-label="Attach media"]',
     required: true,
   },
   {
