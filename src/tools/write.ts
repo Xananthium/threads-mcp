@@ -317,7 +317,7 @@ async function fillAndSubmitComposer(
   // anchored regex keeps this off "Post Options", which sits beside it.
   const postBtn = dialog.getByRole('button', { name: /^post$/i }).first();
   if (beforeSubmit) beforeSubmit();
-  await safeClick(postBtn, 8000);
+  if (!(await domClick(postBtn, 8000))) await safeClick(postBtn, 8000);
 }
 
 /**
@@ -596,7 +596,8 @@ export async function publishTextReply(opts: {
       throw new ThreadsAPIError('Reply submit control is unavailable.', 200, 'reply');
     }
     if (opts.beforeSubmit) opts.beforeSubmit();
-    await submit.click({ timeout: 10000, noWaitAfter: true });
+    if (!(await domClick(submit, 10000)))
+      await submit.click({ timeout: 10000, noWaitAfter: true });
     await activePage.waitForTimeout(1500);
     markWriteComplete();
     invalidateAfterWrite();
